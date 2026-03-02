@@ -133,9 +133,116 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 13px 18px;
-      margin-bottom: 28px;
+      margin-bottom: 12px;
       animation: fadeUp .6s .1s cubic-bezier(.22,1,.36,1) both;
     }
+
+    /* ── Sign Panel ──────────────────────────────────── */
+    .sign-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      margin-bottom: 28px;
+      animation: fadeUp .4s cubic-bezier(.22,1,.36,1) both;
+    }
+    .sign-panel.visible { display: block; }
+
+    .sign-title {
+      font-size: .62rem;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sign-title::before {
+      content: '✍️';
+      font-size: .9rem;
+    }
+
+    #signBtn {
+      width: 100%;
+      background: rgba(79,142,255,.12);
+      border: 1px solid rgba(79,142,255,.3);
+      border-radius: 10px;
+      color: var(--accent);
+      font-family: 'DM Mono', monospace;
+      font-size: .78rem;
+      padding: 11px;
+      cursor: pointer;
+      transition: all .2s;
+      margin-bottom: 14px;
+    }
+    #signBtn:hover { background: rgba(79,142,255,.2); transform: translateY(-1px); }
+    #signBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+    .sig-box {
+      display: none;
+      background: var(--card);
+      border: 1px solid rgba(0,229,176,.2);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .sig-box.visible { display: block; animation: popIn .4s cubic-bezier(.34,1.56,.64,1) both; }
+
+    .sig-row {
+      display: flex; align-items: flex-start;
+      gap: 10px; margin-bottom: 10px;
+    }
+    .sig-row:last-child { margin-bottom: 0; }
+
+    .sig-key {
+      font-size: .58rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      white-space: nowrap;
+      padding-top: 2px;
+      min-width: 60px;
+    }
+    .sig-val {
+      font-size: .68rem;
+      color: var(--accent2);
+      word-break: break-all;
+      line-height: 1.6;
+      flex: 1;
+    }
+    .sig-val.hash { color: var(--accent); }
+
+    .copy-btn {
+      flex-shrink: 0;
+      background: rgba(79,142,255,.1);
+      border: 1px solid rgba(79,142,255,.2);
+      border-radius: 6px;
+      color: var(--accent);
+      font-family: 'DM Mono', monospace;
+      font-size: .6rem;
+      padding: 3px 8px;
+      cursor: pointer;
+      transition: background .2s;
+      white-space: nowrap;
+    }
+    .copy-btn:hover { background: rgba(79,142,255,.22); }
+
+    .basescan-verify-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 12px;
+      width: 100%;
+      justify-content: center;
+      background: rgba(0,229,176,.06);
+      border: 1px solid rgba(0,229,176,.2);
+      border-radius: 8px;
+      padding: 9px;
+      font-size: .68rem;
+      color: var(--accent2);
+      text-decoration: none;
+      transition: background .2s;
+    }
+    .basescan-verify-link:hover { background: rgba(0,229,176,.12); }
 
     .status-dot {
       width: 8px; height: 8px; border-radius: 50%;
@@ -563,6 +670,36 @@
     <button id="connectBtn" onclick="connectWallet()">Connect</button>
   </div>
 
+  <!-- Sign Message Panel -->
+  <div class="sign-panel" id="signPanel">
+    <div class="sign-title">Prove Ownership · Sign a Message</div>
+    <button id="signBtn" onclick="signMessage()">✍️ &nbsp;Sign Message with My Wallet</button>
+
+    <div class="sig-box" id="sigBox">
+      <!-- Message signed -->
+      <div class="sig-row">
+        <span class="sig-key">Message</span>
+        <span class="sig-val" id="sigMessage"></span>
+      </div>
+      <!-- Signer address -->
+      <div class="sig-row">
+        <span class="sig-key">Wallet</span>
+        <span class="sig-val" id="sigWallet"></span>
+        <button class="copy-btn" onclick="copyText('sigWallet')">Copy</button>
+      </div>
+      <!-- Signature hash -->
+      <div class="sig-row">
+        <span class="sig-key">Sig Hash</span>
+        <span class="sig-val hash" id="sigHash"></span>
+        <button class="copy-btn" onclick="copyText('sigHash')">Copy</button>
+      </div>
+      <!-- Basescan link -->
+      <a class="basescan-verify-link" id="basescanSigLink" href="#" target="_blank" rel="noopener">
+        🔍 &nbsp;Verify this signature on Basescan ↗
+      </a>
+    </div>
+  </div>
+
   <!-- Main Card -->
   <div class="card">
     <div class="card-title">
@@ -800,11 +937,70 @@
       document.getElementById('connectBtn').style.color = '#000';
 
       showToast('Wallet connected to Base! ✓', 'success');
+
+      // Show sign panel
+      document.getElementById('signPanel').classList.add('visible');
+
     } catch(e) {
       document.getElementById('connectBtn').disabled = false;
       document.getElementById('connectBtn').textContent = 'Connect';
       showToast(e.message || 'Connection failed', 'error');
     }
+  }
+
+  // ─────────────────────────────────────────────
+  //  Sign Message → Prove Ownership
+  // ─────────────────────────────────────────────
+  async function signMessage() {
+    if (!signer) { showToast('Connect your wallet first.', 'error'); return; }
+
+    const btn = document.getElementById('signBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner" style="border-top-color:var(--accent);width:12px;height:12px;border-width:2px;display:inline-block;"></span> Signing…';
+
+    try {
+      const addr      = await signer.getAddress();
+      const timestamp = new Date().toISOString();
+      const message   = `I am the owner of the BodyBase dApp.\nWallet: ${addr}\nTimestamp: ${timestamp}\nDeployed on Base Blockchain.`;
+
+      // Ask MetaMask to sign
+      const signature = await signer.signMessage(message);
+
+      // Compute the message hash (EIP-191 style)
+      const msgHash = ethers.hashMessage(message);
+
+      // Populate the UI
+      document.getElementById('sigMessage').textContent = message;
+      document.getElementById('sigWallet').textContent  = addr;
+      document.getElementById('sigHash').textContent    = signature;
+
+      // Basescan link — shows wallet page so they can see the address
+      document.getElementById('basescanSigLink').href =
+        `https://basescan.org/address/${addr}`;
+
+      document.getElementById('sigBox').classList.add('visible');
+      showToast('Message signed! ✓ Copy your signature hash.', 'success');
+
+      btn.innerHTML = '✅ &nbsp;Signed! Sign Again';
+      btn.disabled  = false;
+
+    } catch(e) {
+      btn.innerHTML = '✍️ &nbsp;Sign Message with My Wallet';
+      btn.disabled  = false;
+      showToast(e.code === 4001 ? 'Signature rejected.' : (e.message || 'Sign failed'), 'error');
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  //  Copy helper
+  // ─────────────────────────────────────────────
+  function copyText(elId) {
+    const text = document.getElementById(elId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Copied to clipboard! ✓', 'success');
+    }).catch(() => {
+      showToast('Copy failed — please select manually.', 'error');
+    });
   }
 
   // ─────────────────────────────────────────────
