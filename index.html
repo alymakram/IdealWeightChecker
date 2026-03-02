@@ -960,8 +960,7 @@
 
     try {
       const addr      = await signer.getAddress();
-      const timestamp = new Date().toISOString();
-      const message   = `I am the owner of the BodyBase dApp.\nWallet: ${addr}\nTimestamp: ${timestamp}\nDeployed on Base Blockchain.`;
+      const message   = `I am the owner of the BodyBase dApp. Wallet: ${addr}. Deployed on Base Blockchain.`;
 
       // Ask MetaMask to sign
       const signature = await signer.signMessage(message);
